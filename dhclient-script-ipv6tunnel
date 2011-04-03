@@ -1,0 +1,63 @@
+#!/bin/sh
+
+# this is a wrapper script for dhclient-script, which is called by OpenBSD's dhclient
+# when a DHCP event occurs. It calls dhclient-script and then follows up with
+# maintenance tasks to manage an IPv6 tunnel (from tunnelbroker.net).
+
+# the following variables must be defined in the configuration file
+#HE_USER_ID
+#HE_TUNNEL_ID
+#HE_MD5_PASS
+#TUNNEL_IF
+#TUNNEL_SRV_IPV4
+#TUNNEL_SRV_IPV6
+#TUNNEL_LOCAL_IPV6
+
+LOG="/home/chuckx/ipv6.log"
+DHCLIENT_SCRIPT="/sbin/dhclient-script"
+
+CONF="/home/chuckx/code/dhclient-script-ipv6tunnel/dhclient-script-ipv6tunnel.conf"
+
+# load configuration file
+. ${CONF}
+
+# call normal dhclient-script
+${DHCLIENT_SCRIPT}
+
+# if dhclient-script fails, follow suit
+if [ "$?" -eq "1" ]
+then
+    exit 1
+fi
+
+# manage IPv6 tunnel
+case $reason in
+
+BOUND|RENEW|REBIND|REBOOT)
+
+    echo "IPV6 processing..." >> ${LOG}
+
+    # if new IP address, update tunnel service
+    if [ "$old_ip_address" != "$new_ip_address" ]; then
+
+       echo "Updating tunnelbroker.net with IPv4 address" >> ${LOG}
+
+        wget https://ipv4.tunnelbroker.net/ipv4_end.php?ipv4b=${new_ip_address}&pass=${HE_MD_PASS}&user_id=${HE_USER_ID}&tunnel_id=${HE_TUNNEL_ID}
+    fi
+
+    # setup tunnel (IPv4 end points)
+    ifconfig ${TUNNEL_IF} tunnel ${new_ip_address} ${TUNNEL_SRV_IPV4}
+
+    # setup tunnel (IPv6 end points)
+    ifconfig ${TUNNEL_IF} inet6 alias ${TUNNEL_LOCAL_IPV6} ${TUNNEL_SRV_IPV6} prefixlen 128
+
+    # setup IPv6 default route
+    route -n add -inet6 default ${TUNNEL_SRV_IPV6}
+
+    echo "done." >> ${LOG}
+    echo >> ${LOG}
+
+    ;;
+esac
+
+exit 0

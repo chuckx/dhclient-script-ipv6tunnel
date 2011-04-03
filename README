@@ -1,0 +1,8 @@
+This is a wrapper for OpenBSD's dhclient-script which sets up an IPv6 tunnel
+provided by tunnelbroker.net.
+
+It is used by using the following configuration in /etc/dhclient.conf
+
+interface <interface name> {
+    script "/path/to/dhclient-script/ipv6-tunnel";
+}
